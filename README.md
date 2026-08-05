@@ -55,7 +55,3 @@ Ask-The-URL/
 ├── README.md
 └── .gitignore
 ```
-
-## License
-
-MIT License
