@@ -6,6 +6,8 @@ from backend import (
     index_exists,
 )
 
+st.set_page_config(page_title="Ask-The-URL", page_icon="assets/icons8-ask-32.png")
+
 st.title("Ask-The-Url")
 st.sidebar.title("Enter Urls")
 
