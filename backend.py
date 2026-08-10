@@ -21,12 +21,18 @@ def get_llm() -> ChatGroq:
         temperature=0.4,
     )
 
+
+def get_embedder() -> HuggingFaceEmbeddings:
+    return HuggingFaceEmbeddings()
+
+
 #Check and add https:// if not in url
 def normalize_url(url: str) -> str:
     url = url.strip()
     if url and not url.startswith(("http://", "https://")):
         url = "https://" + url
     return url
+
 
 #Strip, fix scheme, and drop empty entries from user-entered URLs.
 def clean_urls(raw_urls: List[str]) -> List[str]:
@@ -37,8 +43,9 @@ def build_and_save_index(
     urls: List[str],
     index_dir: str = FAISS_INDEX_DIR,
     status_callback: Optional[Callable[[str], None]] = None,
+    embedder: Optional[HuggingFaceEmbeddings] = None,
 ) -> None:
-   
+    
     def report(msg: str) -> None:
         if status_callback:
             status_callback(msg)
@@ -58,7 +65,7 @@ def build_and_save_index(
     docs = text_splitter.split_documents(data)
 
     report("Embedding the chunks...")
-    embedder = HuggingFaceEmbeddings()
+    embedder = embedder or get_embedder()
     vector_store = FAISS.from_documents(documents=docs, embedding=embedder)
 
     report("Saving the embeddings to disk...")
@@ -69,18 +76,27 @@ def index_exists(index_dir: str = FAISS_INDEX_DIR) -> bool:
     return os.path.exists(index_dir)
 
 
-def answer_question(query: str, index_dir: str = FAISS_INDEX_DIR) -> Dict[str, str]:
-
-    embedder = HuggingFaceEmbeddings()
-    
-    vectorstore = FAISS.load_local(
+def load_vectorstore(index_dir: str = FAISS_INDEX_DIR, embedder: Optional[HuggingFaceEmbeddings] = None) -> FAISS:
+    embedder = embedder or get_embedder()
+    return FAISS.load_local(
         index_dir,
         embedder,
         allow_dangerous_deserialization=True,
     )
 
+
+def answer_question(
+    query: str,
+    index_dir: str = FAISS_INDEX_DIR,
+    vectorstore: Optional[FAISS] = None,
+    llm: Optional[ChatGroq] = None,
+) -> Dict[str, str]:
+
+    vectorstore = vectorstore or load_vectorstore(index_dir)
+    llm = llm or get_llm()
+
     chain = RetrievalQAWithSourcesChain.from_llm(
-        llm=get_llm(),
+        llm=llm,
         retriever=vectorstore.as_retriever(),
     )
 
@@ -89,4 +105,4 @@ def answer_question(query: str, index_dir: str = FAISS_INDEX_DIR) -> Dict[str, s
     return {
         "answer": result.get("answer", ""),
         "sources": result.get("sources", ""),
-    }
+        }
